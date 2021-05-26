@@ -5,8 +5,10 @@ date: "25/05/2021"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  fig.path = "README_figs/README-"
+)
 ```
 
 # Webscraping Brewery Data using R
@@ -19,11 +21,12 @@ but fell through because of the lack of variance in the data.
 
 Lets begin by reading in a csv of all the Breweries in Montreal. 
 
-```{r, warnings=FALSE, messages=FALSE}
+```{r, warning=FALSE, message=FALSE}
 library(dplyr)
 library(stringr)
 library(rvest)
 library(purrr)
+library(kableExtra)
 
 df <- read.csv('Quebec_Brewery_Data.csv')
 names(df)
@@ -34,7 +37,7 @@ brewery, and most importantly the URL to each brewery's Untappd page.
 
 Lets do some quick cleaning: 
 
-```{r, warnings=FALSE, messages=FALSE}
+```{r, warning=FALSE, message=FALSE}
 df <- rename(df, Brewery = `ï..Name..Social.Reason.`)
 
 cols <- c('Brewery', 
@@ -53,9 +56,15 @@ Here is an example of how we would grab the score on one brewery.
 We want to go to inspect an Untappd page and look for the html tags associated 
 with the data we wish to scrape. 
 
-![Yellow Dog Untappd inspect page](inspect-untappd-score.png)
+We use the `rvest` library. This works well to download the webpage HTML and 
+collect the data points based on the CSS tags.
 
-```{r, warnings=FALSE, messages=FALSE}
+![](inspect-untappd-score.png)
+
+
+## Example scrape
+
+```{r, warning=FALSE, message=FALSE}
 # Where do we want to get the data
 url = 'https://untappd.com/' 
 ext = 'YellowDogBrew'
@@ -73,14 +82,16 @@ page %>%
 With this general approach, we are able to loop through the entire list 
 of URLs, grabbing their brewery scores. 
 
-** Note, it is important to add a sleep timer when scraping **
+*Note, it is important to add a sleep timer when scraping*
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 # run on a sample of URLs
-dt <- df[1:10, ]
+dt <- df[1:2, ]
 ```
 
-```{r, warnings=FALSE, messages=FALSE}
+## Write a function to loop through all the URLs
+
+```{r, warning=FALSE, message=FALSE}
 brewery_score <- function(url){
   sleep <- runif(1, min = 1.5, max = 3)
   Sys.sleep(sleep) # rest period between scrapes
@@ -103,12 +114,104 @@ dt <- cbind(dt, results)
 
 
 For brevity, I will load in the results from scraping each URL. 
+```{r, warning=FALSE, message=FALSE}
+df <- read.csv('untapped_Scrape.csv')
+```
 
 
-## Fun visualizations
+We can see the distribution of Untappd scores. 
+
+```{r, warning=FALSE, message=FALSE}
+hist(df$S_untappd, main = 'Histogram of Untappd ratings')
+```
+
+# Fun visualizations
 We can use the latitude longitude to compare the quality of breweries in Montreal.  
 
+```{r, warning=FALSE, message=FALSE, results='hide'}
+library(sf)
+library(ggplot2)
 
+poly <- "MN.geojson"
+shps <- st_read(poly)
+pnts <- data.frame(x=df$Longitude,y=df$Latitude)
+my_sf <- st_as_sf(df, coords = c('Longitude', 'Latitude'), crs = st_crs(shps) )
+pnts_sf <- st_as_sf(pnts, coords = c('x', 'y'), crs = st_crs(shps))
 
-Improvements: 
-1. We can add a TryCatch to the URL scrape to aoid breaking with broken URLs. 
+# keep only regions of Quebec with breweries
+in_poly <- st_join(pnts_sf, shps, join = st_within)
+df$geometry <- paste(df$Longitude, df$Latitude, sep=", ")
+pnts_sf <- st_join(pnts_sf, my_sf, by = 'geometry')
+regions <- subset(shps, res_nm_reg %in% unique(in_poly$res_nm_reg))
+
+```
+```{r, warning=FALSE, message=FALSE}
+ggplot() + 
+  geom_sf(data = regions, alpha = 0.2) +
+  geom_sf(data = my_sf, aes(col = S_untappd)) +
+  theme_classic() + 
+  ggtitle("Brewery Locations in Quebec with Untappd score")
+
+```
+
+# Do breweries close to eachother outpreform the average brewery?
+
+We can group breweries by those sharing latitude and logitude coordinates.  
+Then we can run a regression to see if those near eachother have higher ratings.
+
+```{r, warning=FALSE, message=FALSE}
+df$lat <- round(df$Latitude, 1)
+df$lng <- round(df$Longitude, 1)
+df$latlng <- paste(df$lat, df$lng)
+
+avg_scores <- df %>%
+  group_by(latlng) %>%
+  summarise(n = n(), 
+            avg = mean(S_untappd, na.rm=T)
+            ) %>% arrange(desc(n))
+
+df <- merge(df, avg_scores, by = 'latlng')
+
+ggplot(df, aes(x=n, y=avg)) + 
+  geom_point() + 
+  geom_smooth(method = lm) + 
+  labs(x = 'Number of nearby breweries', 
+       y = 'Average brewery score' 
+       )
+```
+
+As we can see, there is no impact from this method. Could also look at distance, 
+or clusters of breweries. 
+
+## Clustering
+
+Here is a plot of the latitude and longitudes of each brewery.
+```{r, warning=FALSE, message=FALSE}
+ggplot(df, aes(x=Longitude, y=Latitude)) + geom_point()
+```
+
+```{r, warning=FALSE, message=FALSE}
+coord <- select(df, Longitude, Latitude)
+clusters <- kmeans(coord, 15)
+df$cluster <- as.factor(clusters$cluster)
+
+ggplot(df, aes(x=Longitude, y=Latitude)) + 
+  geom_point(aes(color = cluster)) + 
+  labs(title = 'K-Means Clusters')
+
+df %>%
+  group_by(cluster) %>%
+  summarise(score = mean(S_untappd, na.rm=T), count = n()) %>%
+  ungroup() %>%
+  ggplot(aes(x = count, y = score)) + geom_point()
+
+tbl <- df %>%
+  mutate(Num_in_cluster = ifelse(n > 20, '20+', '<20')) %>%
+  group_by(Num_in_cluster) %>%
+  summarise(score = mean(S_untappd, na.rm=T))
+
+kbl(tbl) %>%
+  kable_paper(bootstrap_options = "striped", full_width = F)
+```
+
+And.. still no luck. Good thing I dropped this idea.
