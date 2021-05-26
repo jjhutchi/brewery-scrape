@@ -1,9 +1,7 @@
-brewery-scrape
+Webscraping Brewery Data using R
 ================
 Jordan Hutchings
 25/05/2021
-
-# Webscraping Brewery Data using R
 
 For the purpose of this document, we will be webscraping the brewery
 ratings for Montreal breweries on [Untappd](https://untappd.com/).

@@ -1,5 +1,5 @@
 ---
-title: "brewery-scrape"
+title: "Webscraping Brewery Data using R"
 author: "Jordan Hutchings"
 date: "25/05/2021"
 output: rmarkdown::github_document
@@ -11,8 +11,6 @@ knitr::opts_chunk$set(
   fig.path = "README_figs/README-"
 )
 ```
-
-# Webscraping Brewery Data using R
 
 For the purpose of this document, we will be webscraping the brewery ratings 
 for Montreal breweries on [Untappd](https://untappd.com/). 
