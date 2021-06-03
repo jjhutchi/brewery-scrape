@@ -76,6 +76,20 @@ page %>%
   html_text() %>%
   str_replace(pattern = '\\(', "") %>%
   str_replace(pattern = '\\)', "")
+
+# page count
+c <- page %>%
+  html_nodes(".count") %>%
+  html_text()
+
+c
+c[[1]]
+
+# raters
+page %>%
+  html_nodes(".raters") %>%
+  html_text() %>%
+  str_replace(pattern = '\\\n', "")
 ```
 
 With this general approach, we are able to loop through the entire list 

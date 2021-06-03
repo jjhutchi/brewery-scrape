@@ -87,6 +87,39 @@ page %>%
 
     ## [1] "3.79"
 
+``` r
+# page count
+c <- page %>%
+  html_nodes(".count") %>%
+  html_text()
+
+c
+```
+
+    ##  [1] "81,916"        "18,576"        "372"           "0"            
+    ##  [5] "\n437 Beers\n" "\n1\n"         "0"             "\n2\n"        
+    ##  [9] "0"             "0"             "\n6\n"         "\n7\n"        
+    ## [13] "0"             "\n3\n"         "0"             "\n1\n"        
+    ## [17] "\n2\n"         "0"             "0"             "0"            
+    ## [21] "0"             "\n2\n"         "\n1\n"         "\n2\n"        
+    ## [25] "0"
+
+``` r
+c[[1]]
+```
+
+    ## [1] "81,916"
+
+``` r
+# raters
+page %>%
+  html_nodes(".raters") %>%
+  html_text() %>%
+  str_replace(pattern = '\\\n', "")
+```
+
+    ## [1] "54,054 Ratings "
+
 With this general approach, we are able to loop through the entire list
 of URLs, grabbing their brewery scores.
 
